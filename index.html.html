@@ -1,0 +1,1728 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>WTC Cycle Timer v6.1</title>
+    <style>
+        /* --- 全域重設及變數 --- */
+        /* 說明：定義根元素變數，包括顏色主題；重設所有元素的盒模型及點擊高亮效果。 */
+        :root {
+            --bg-color: #000000;
+            --text-color: #ffffff;
+            --status-green: #1b5e20;
+            --status-red: #b71c1c;
+            --status-grey: #505050;
+            --text-grey: #aaaaaa;
+            --btn-start-green: #00e676;
+            --btn-finish-red: #ff1744;
+            --btn-reset-blue: #2979ff;
+            --btn-share-purple: #651fff;
+            --btn-history-orange: #ff9800;
+            --alert-yellow: #ffd600;
+            --alert-orange: #ff6d00;
+            --alert-red: #ff1744;
+            --lap-running-color: #00e5ff;
+            --audio-active-color: #00e676;
+            --audio-loading-color: #ffeb3b;
+        }
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Roboto Condensed', 'Arial Narrow', sans-serif;
+            height: 100vh;
+            height: 100dvh;
+            overflow: hidden;
+            width: 100%;
+        }
+
+        /* --- 畫面1: 計時器介面 --- */
+        /* 說明：計時器畫面的主要容器，負責定位及溢出處理。 */
+        .screen-timer {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 10;
+            overflow: hidden;
+        }
+
+        /* 1. 標頭區塊 */
+        /* 說明：標頭的樣式，包括定位、漸變背景及互動元素。 */
+        .header {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: auto;
+            min-height: 80px;
+            padding: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.9), rgba(0,0,0,0));
+            z-index: 500;
+            padding-top: max(10px, env(safe-area-inset-top));
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+        .header > * { pointer-events: auto; }
+        .header-left {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            pointer-events: auto;
+            transition: opacity 0.2s;
+        }
+        .header-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .header-right {
+            display: flex;
+            gap: 10px;
+            pointer-events: auto;
+            z-index: 600;
+            align-items: flex-start;
+        }
+
+        /* 輸入欄位樣式 */
+        /* 說明：輸入群組及數字輸入欄位的樣式，包括背景、邊框及文字對齊。 */
+        .input-group {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            color: #ccc;
+            font-size: 0.9rem;
+            font-weight: bold;
+            text-shadow: 0 1px 2px #000;
+            background: rgba(60,60,60,0.7);
+            padding: 5px 8px;
+            border-radius: 6px;
+        }
+        input[type="number"] {
+            background: rgba(30, 30, 30, 1);
+            border: 1px solid #888;
+            color: #fff;
+            padding: 8px 4px;
+            border-radius: 4px;
+            font-size: 20px;
+            text-align: center;
+            font-weight: bold;
+        }
+        .input-gear { width: 60px; }
+        .input-dist { width: 80px; }
+        .input-laps { width: 60px; }
+        .label-text { font-size: 0.8rem; color: #bbb; margin-right: 2px;}
+
+/* 音頻按鈕 */
+        /* 說明：音頻按鈕的樣式，包括載入及活躍狀態的動畫效果。 */
+        .btn-audio {
+            background: rgba(60, 60, 60, 0.7);
+            border: 1px solid #888;
+            color: #888;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 40px;
+            height: 40px;
+            font-size: 1.2rem;
+            margin-left: 5px;
+            transition: all 0.2s;
+            /* iOS 優化：移除默認外觀與點擊高亮 */
+            -webkit-appearance: none;
+            -webkit-tap-highlight-color: transparent;
+            position: relative; /* 為了讓偽元素定位 */
+            user-select: none;
+            touch-action: manipulation;
+        }
+
+        /* 擴大點擊區域：解決 iOS 需要「斜按」或按不準的問題 */
+        .btn-audio::before, .btn-icon-round::before {
+            content: '';
+            position: absolute;
+            width: 60px; /* 比按鈕本身大，增加感應範圍 */
+            height: 60px;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: transparent;
+            z-index: 1;
+        }
+
+        /* 確保按鈕內的圖標或文字不會攔截點擊事件 */
+        .btn-audio > *, .btn-icon-round > * {
+            pointer-events: none;
+        }
+
+        .btn-audio.loading {
+            border-color: var(--audio-loading-color);
+            color: var(--audio-loading-color);
+            animation: pulse-border 1.5s infinite;
+        }
+
+        .btn-audio.active {
+            background: rgba(0, 50, 0, 0.9);
+            color: var(--audio-active-color);
+            border-color: var(--audio-active-color);
+            box-shadow: 0 0 8px rgba(0, 230, 118, 0.3);
+        }
+
+        @keyframes pulse-border {
+            0% { box-shadow: 0 0 0 0 rgba(255, 235, 59, 0.4); }
+            70% { box-shadow: 0 0 0 6px rgba(255, 235, 59, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 235, 59, 0); }
+        }
+
+        /* 歷史及重設按鈕 */
+        /* 說明：圓形圖示按鈕的樣式，包括顏色及邊框。 */
+        .btn-icon-round {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: 1px solid #999;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.2rem;
+            cursor: pointer;
+            background: rgba(40,40,40,0.9);
+            color: #fff;
+            margin-left: 5px;
+            /* iOS 優化 */
+            -webkit-appearance: none;
+            -webkit-tap-highlight-color: transparent;
+            position: relative;
+            user-select: none;
+            touch-action: manipulation;
+        }
+
+        #historyBtn {
+            color: var(--btn-history-orange);
+            border-color: var(--btn-history-orange);
+            border-radius: 6px;
+        }
+
+        /* 重設按鈕 */
+        /* 說明：小型重設按鈕的樣式，包括定位及互動效果。 */
+        .btn-mini-reset {
+            background: rgba(40, 40, 40, 0.95);
+            border: 1px solid #999;
+            color: #fff;
+            border-radius: 8px;
+            cursor: pointer;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.6);
+            touch-action: manipulation;
+            padding: 0 15px;
+            height: 50px;
+            min-width: 90px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            color: #fff;
+            background-color: #d32f2f;
+            border-color: #ff5252;
+           
+            position: absolute;
+            left: 10px;
+            top: max(10px, env(safe-area-inset-top));
+            z-index: 2000;
+        }
+       
+        .btn-mini-reset:active { transform: scale(0.95); opacity: 0.9; }
+        .btn-header-share {
+            background: var(--btn-share-purple);
+            border: 1px solid #fff;
+            padding: 0 15px;
+            height: 45px;
+            font-size: 1rem;
+            font-weight: 900;
+            text-transform: uppercase;
+            color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+       
+        .btn-header-share:active {
+            transform: scale(0.95);
+            background-color: #512da8;
+        }
+
+        /* 2. 主要點擊區域 */
+        /* 說明：點擊區域的樣式，用於開始或記錄圈數。 */
+        .tap-area {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: background-color 0.15s;
+            padding-top: 0;
+        }
+
+        /* 3. 浮動動作按鈕 */
+        /* 說明：浮動按鈕的容器及按鈕樣式，包括開始、結束及重設。 */
+        .floating-action-container {
+            position: absolute;
+            bottom: 20%;
+            right: 20px;
+            width: 100px;
+            height: 100px;
+            z-index: 100;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            pointer-events: auto;
+        }
+        .action-btn {
+            width: 100px;
+            height: 100px;
+            border: none;
+            border-radius: 50%;
+            font-size: 1.3rem;
+            font-weight: 900;
+            text-transform: uppercase;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.6);
+            transition: transform 0.1s;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            line-height: 1.1;
+            padding: 10px;
+        }
+       
+        .action-btn:active { transform: scale(0.9); }
+        .btn-start { background-color: var(--btn-start-green); color: #000; border: 3px solid #fff; }
+        .btn-finish { background-color: var(--btn-finish-red); color: #fff; border: 3px solid #fff; }
+        .btn-reset-float { background-color: var(--btn-reset-blue); color: #fff; border: 3px solid #fff; font-size: 1.2rem; }
+
+        /* 顯示元素 */
+        /* 說明：資訊顯示元素的樣式，包括定位及文字陰影。 */
+        .info-corner {
+            position: absolute;
+            font-family: monospace;
+            opacity: 0.7;
+            z-index: 5;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+       
+        /* 左上角容器 */
+        /* 說明：左上角顯示圈數及品牌文字。 */
+        .top-left {
+            top: 150px;
+            left: 20px;
+            color: #fff;
+            line-height: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        /* 控制圈數顯示的可見性 */
+        .lap-info-row {
+            display: none; /* 預設隱藏 */
+            align-items: baseline;
+            gap: 8px;
+        }
+        #lapCounter {
+            font-size: 10vmin;
+            font-weight: bold;
+            line-height: 0.9;
+        }
+        #lapsRemaining {
+            font-size: 4vmin;
+            color: var(--alert-yellow);
+            font-weight: bold;
+            display: none;
+            margin-top: 5px;
+            margin-bottom: 5px;
+        }
+        .branding-text {
+            font-size: 10px;
+            font-family: sans-serif;
+            color: #888;
+            font-style: italic;
+            margin-top: 5px;
+            opacity: 0.8;
+            font-weight: normal;
+            letter-spacing: 1px;
+        }
+       
+        /* 右上角用於運行圈時間 */
+        /* 說明：右上角顯示總時間及運行圈時間。 */
+        .top-right {
+            top: 150px;
+            right: 20px;
+            text-align: right;
+        }
+        #totalTimer { font-size: 5vmin; color: #fff; display: block; font-weight: bold; }
+        #runningLapTimer { font-size: 4vmin; color: var(--lap-running-color); display: block; margin-top: 5px; font-weight: bold; }
+        .coach-display {
+            font-size: 45vmin;
+            font-weight: 900;
+            line-height: 0.9;
+            text-align: center;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: -0.05em;
+            margin-top: -5vh;
+            text-shadow: 0 4px 10px rgba(0,0,0,0.4);
+            padding-right: 10vw;
+        }
+        .sub-display-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 0;
+            padding-right: 10vw;
+        }
+        .full-display { font-size: 8vmin; font-family: monospace; opacity: 0.8; font-weight: bold; }
+       
+        .diff-display {
+            font-size: 6vmin;
+            font-weight: bold;
+            margin-top: 1vh;
+            padding: 0.5vmin 2vmin;
+            border-radius: 6px;
+            background: rgba(0,0,0,0.3);
+            min-height: 7vmin;
+        }
+        .waiting-text {
+            font-size: 8vmin;
+            color: #888;
+            font-weight: 900;
+            text-transform: uppercase;
+            text-align: center;
+            line-height: 1.2;
+            padding-right: 10vw;
+        }
+       
+        /* 倒數數字（無動畫，硬切換） */
+        /* 說明：倒數數字的樣式，包括大小及陰影。 */
+        .countdown-number {
+            font-size: 50vmin; /* 大型 */
+            color: var(--alert-yellow);
+            font-weight: 900;
+            line-height: 1;
+            display: block;
+            text-shadow: 0 0 10px #000;
+        }
+
+        /* 警示覆蓋層 */
+        /* 說明：警示文字的覆蓋層樣式，包括定位及邊框。 */
+        .alert-overlay {
+            position: absolute;
+            top: 75%;
+            transform: translateY(-50%);
+            left: 20px;
+            width: auto;
+            pointer-events: none;
+            z-index: 25;
+            display: none;
+        }
+        .alert-text {
+            font-size: 3.5vmin;
+            font-weight: 900;
+            color: #fff;
+            text-shadow: 1px 1px 0 #000;
+            background: rgba(0,0,0,0.85);
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 2px solid white;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+
+        /* 動態背景 */
+        /* 說明：根據狀態變更背景顏色。 */
+        .bg-faster { background-color: var(--status-green) !important; }
+        .bg-slower { background-color: var(--status-red) !important; }
+        .bg-stable { background-color: var(--status-grey) !important; }
+
+        /* --- 畫面2: 摘要介面 --- */
+        /* 說明：摘要畫面的容器樣式，包括顯示及背景。 */
+        .screen-summary {
+            display: none;
+            flex-direction: column;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            z-index: 2000;
+        }
+        .summary-header-bar {
+            flex: 0 0 90px;
+            padding: 10px 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: #111;
+            border-bottom: 2px solid #333;
+            z-index: 3000;
+            padding-top: max(10px, env(safe-area-inset-top));
+        }
+        .summary-info {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        .summary-label { font-size: 0.8rem; color: #888; }
+        .summary-total { font-size: 1.5rem; font-weight: bold; color: #fff; font-family: monospace; }
+        .summary-sub { font-size: 0.9rem; color: #00bcd4; font-weight: bold; margin-top: 2px;}
+
+        /* 標頭右側: 分享 + 設定 + CSV */
+        /* 說明：摘要標頭右側按鈕群組。 */
+        .summary-header-right {
+            display: flex;
+            gap: 10px;
+            pointer-events: auto;
+            z-index: 3001;
+            align-items: center;
+        }
+        .btn-icon-sq {
+            width: 45px;
+            height: 45px;
+            background: #333;
+            border: 1px solid #777;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 1.5rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+        }
+        .btn-icon-sq:active { background: #555; }
+
+        /* 報告選項下拉菜單 */
+        /* 說明：報告選項的下拉菜單樣式，包括定位及陰影。 */
+        .report-options-menu {
+            position: absolute;
+            top: 80px;
+            right: 15px;
+            background: #222;
+            border: 1px solid #555;
+            border-radius: 8px;
+            padding: 10px;
+            z-index: 4000;
+            display: none;
+            flex-direction: column;
+            gap: 8px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.8);
+            min-width: 180px;
+        }
+       
+        .report-options-menu.show { display: flex; }
+        .report-option-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #eee;
+            font-size: 1rem;
+            cursor: pointer;
+        }
+        .report-option-item input {
+            transform: scale(1.3);
+            margin: 0;
+        }
+
+        /* 可滾動內容 */
+        /* 說明：摘要內容的滾動區域樣式。 */
+        .summary-content {
+            flex: 1;
+            overflow-y: scroll;
+            -webkit-overflow-scrolling: touch;
+            padding: 0;
+            padding-bottom: 30vh;
+        }
+        .summary-table { width: 100%; border-collapse: collapse; font-size: 4vmin; }
+        .summary-table th {
+            position: sticky;
+            top: 0;
+            background: #222;
+            color: #aaa;
+            padding: 10px;
+            text-transform: uppercase;
+            font-size: 3vmin;
+            z-index: 15;
+        }
+        .summary-table td {
+            padding: 1.5vh 1vw;
+            text-align: center;
+            border-bottom: 1px solid #222;
+            font-family: monospace;
+            font-weight: bold;
+        }
+        .row-faster { color: #69f0ae; }
+        .row-slower { color: #ff5252; }
+        .row-stable { color: var(--text-grey); }
+        .row-lap-num { color: #fff; }
+
+      /* --- 畫面3:歷史畫面 --- */
+        /* 說明：歷史記錄畫面的容器樣式，包括顯示及填充。 */
+        .screen-history {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            z-index: 5000;
+            flex-direction: column;
+            padding-top: max(10px, env(safe-area-inset-top));
+        }
+        .history-header {
+            flex: 0 0 60px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 15px;
+            border-bottom: 1px solid #333;
+            background: #111;
+        }
+        
+        .history-actions {
+            display: flex;
+            gap: 15px;
+        }
+        .history-title { font-size: 1.2rem; font-weight: bold; color: #aaa; }
+        .btn-close-history { background: transparent; border: none; color: #fff; font-size: 1.5rem; cursor: pointer; padding: 10px;}
+        
+
+        /* 小型動作按鈕 */
+        /* 說明：歷史畫面中的小型按鈕樣式。 */
+        .btn-hist-mini {
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.85rem;
+            cursor: pointer;
+            border: none;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+            touch-action: manipulation;
+        }
+        .btn-hist-mini:active { transform: scale(0.95); opacity: 0.9; }
+        
+        /* 按鈕顏色區分 */
+        .btn-dl-all { background: var(--status-green); color: #000; }
+        .btn-clear-all { background: #ff4444; color: #fff; } /* 新增：取消/清除數據按鈕樣式 */
+
+        .history-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+            padding-bottom: 50px;
+            -webkit-overflow-scrolling: touch;
+        }
+        .history-item {
+            background: #222;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            border: 1px solid #444;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .record-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px;
+            border-bottom: 1px solid #222;
+            font-family: monospace;
+        }
+        .record-date { color: #888; font-size: 0.9rem; }
+        .record-time { color: #00ff00; font-weight: bold; font-size: 1.1rem; }
+        
+        .history-item:active { background: #333; }
+        
+        .hist-info { display: flex; flex-direction: column; gap: 4px; }
+        .hist-date { font-size: 0.9rem; color: #aaa; }
+        .hist-main { font-size: 1.2rem; font-weight: bold; color: #fff; }
+        .hist-meta { font-size: 0.9rem; color: #00bcd4; }
+        .toast {
+            position: absolute;
+            bottom: 15%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255,255,255,0.95);
+            color: #000;
+            padding: 12px 24px;
+            border-radius: 50px;
+            font-weight: bold;
+            display: none;
+            z-index: 9999;
+            width: max-content;
+            max-width: 80%;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.6);
+            font-size: 1.2rem;
+        }
+    </style>
+
+
+</head>
+<body>
+    <!-- 畫面1: 計時器 -->
+    <!-- 說明：計時器畫面的主要結構，包括標頭、輸入欄位及顯示元素。 -->
+    <div id="screenTimer" class="screen-timer">
+        <!-- 標頭 -->
+        <!-- 說明：標頭區塊，包含左側輸入群組及右側按鈕。 -->
+        <div id="mainHeader" class="header">
+            <div class="header-left">
+                <!-- 第一行: 齒輪及距離 -->
+                <div class="header-row">
+                    <div class="input-group">
+                        <span class="label-text">GEAR</span>
+                        <!-- 空值 -->
+                        <input type="number" id="gearFront" class="input-gear" placeholder="F" value="">
+                        <span style="color:#888;">x</span>
+                        <!-- 空值 -->
+                        <input type="number" id="gearRear" class="input-gear" placeholder="R" value="">
+                    </div>
+                    <div class="input-group">
+                        <span class="label-text">DIST</span>
+                        <!-- 預設空值，佔位符 m -->
+                        <input type="number" id="distInput" class="input-dist" placeholder="m" value="">
+                        <span style="font-size:0.7rem;">m</span>
+                    </div>
+                </div>
+                <!-- 第二行: 圈數 + 音頻 + 歷史 -->
+                <div class="header-row">
+                    <div class="input-group">
+                        <span class="label-text">LAPS</span>
+                        <input type="number" id="totalLapsInput" class="input-laps" placeholder="">
+                    </div>
+                    <!-- 音頻按鈕 -->
+                    <button id="audioBtn" class="btn-audio">🎵</button>
+                    <!-- 歷史按鈕 -->
+                    <button id="historyBtn" class="btn-icon-round">📜</button>
+                </div>
+            </div>
+            <div class="header-right">
+               <!-- 右側空置 -->
+            </div>
+        </div>
+        <!-- 隱藏音頻輸入及播放器 -->
+        <input type="file" id="audioInput" accept="audio/*" style="display:none;">
+        <audio id="countdownAudio" preload="auto" style="display:none;"></audio>
+        <!-- 重設按鈕 -->
+        <button id="topResetBtn" class="btn-mini-reset">Reset</button>
+        <!-- 點擊區域 -->
+        <!-- 說明：點擊區域，用於觸發開始或記錄圈數，包括左上、右上資訊及警示。 -->
+        <div id="tapArea" class="tap-area">
+            <!-- 左側資訊: 圈數及品牌 -->
+            <div class="info-corner top-left">
+                <div class="lap-info-row" id="lapInfoRow">
+                    <div id="lapCounter">0</div>
+                </div>
+                <div id="lapsRemaining"></div>
+                <div class="branding-text">by Woody Wong v6.1</div>
+            </div>
+           
+            <!-- 右上角: 總時間 + 運行圈時間 -->
+            <div class="info-corner top-right">
+                <div id="totalTimer">00:00.00</div>
+                <div id="runningLapTimer">00:00.00</div>
+            </div>
+            <!-- 警示覆蓋層 -->
+            <div id="alertOverlay" class="alert-overlay">
+                <div id="alertText" class="alert-text">10 LAPS LEFT</div>
+            </div>
+            <div id="waitingText" class="waiting-text">
+                TAP ANYWHERE<br>TO START
+            </div>
+            <div id="activeDisplay" style="display:none; width:100%;">
+                <div id="coachDisplay" class="coach-display">--.-</div>
+                <div class="sub-display-container">
+                    <div id="fullDisplay" class="full-display">--.---</div>
+                    <div id="diffDisplay" class="diff-display"></div>
+                </div>
+            </div>
+        </div>
+        <!-- 浮動開始按鈕 -->
+        <div class="floating-action-container">
+            <button id="mainBtn" class="action-btn btn-start">START</button>
+        </div>
+    </div>
+    <!-- 畫面2: 摘要 -->
+    <!-- 說明：摘要畫面的結構，包括標頭、報告選項及表格內容。 -->
+    <div id="screenSummary" class="screen-summary">
+        <!-- 摘要標頭 -->
+        <div class="summary-header-bar">
+            <div class="summary-info">
+                <span class="summary-label">TOTAL TIME</span>
+                <span id="finalTotalTime" class="summary-total">00:00.000</span>
+                <span id="summaryGearInfo" class="summary-sub"></span>
+            </div>
+            <div class="summary-header-right">
+                <button id="csvBtn" class="btn-icon-sq" title="Download CSV">💾</button>
+                <button id="settingsBtn" class="btn-settings">⚙️</button>
+                <button id="shareBtn" class="btn-header-share">SHARE</button>
+            </div>
+        </div>
+        <!-- 報告選項下拉 -->
+        <div id="reportMenu" class="report-options-menu">
+            <div style="color:#aaa; font-size:0.8rem; margin-bottom:5px; font-weight:bold;">REPORT OPTIONS</div>
+           
+            <div style="background:#333; padding:5px; border-radius:5px; margin-bottom:5px;">
+                <label class="report-option-item" style="font-weight:bold; color:var(--alert-yellow);">
+                    <input type="checkbox" id="optTotalMode"> Use Last Lap Total
+                </label>
+                <label class="report-option-item" style="font-weight:bold; color:#25D366;">
+                    <input type="checkbox" id="optWhatsApp"> WhatsApp Format
+                </label>
+            </div>
+            <label class="report-option-item"><input type="checkbox" id="optDate" checked> Date</label>
+            <label class="report-option-item"><input type="checkbox" id="optStartTime" checked> Start Time</label>
+            <label class="report-option-item"><input type="checkbox" id="optTotal" checked> Total Time</label>
+            <label class="report-option-item"><input type="checkbox" id="optGear" checked> Gear</label>
+            <label class="report-option-item"><input type="checkbox" id="optDist" checked> Distance</label>
+            <label class="report-option-item"><input type="checkbox" id="optLaps" checked> Total Laps</label>
+           
+            <div style="border-top:1px solid #444; margin:5px 0;"></div>
+           
+            <label class="report-option-item"><input type="checkbox" id="optTable" checked> Lap Data (List)</label>
+            <label class="report-option-item"><input type="checkbox" id="optAudioToggle" checked> Audio Start</label>
+        </div>
+        <div class="summary-content">
+            <table class="summary-table" id="summaryTable">
+                <thead>
+                    <tr>
+                        <th width="15%">Lap</th>
+                        <th width="35%">Total</th>
+                        <th width="30%">Split</th>
+                        <th width="20%">Diff</th>
+                    </tr>
+                </thead>
+                <tbody id="summaryBody"></tbody>
+            </table>
+        </div>
+        <div class="floating-action-container">
+            <button id="nextSessionBtn" class="action-btn btn-reset-float">NEXT<br>SESSION</button>
+        </div>
+    </div>
+   
+    <!-- 畫面3: 歷史模態 -->
+    <!-- 說明：歷史記錄畫面的結構，包括標頭及列表。 -->
+  <div id="screenHistory" class="screen-history">
+        <div class="history-header">
+            <span class="history-title">HISTORY</span>
+            <div class="history-actions">
+                <button id="dlAllCsvBtn" class="btn-hist-mini btn-dl-all">📥 ALL CSV</button>
+                <button id="clearAllBtn" class="btn-hist-mini btn-clear-all">🗑️ CLEAR ALL</button>
+            </div>
+            <button id="closeHistoryBtn" class="btn-close-history">✕</button>
+        </div>
+        <div id="historyList" class="history-list">
+            </div>
+    </div>
+   
+    <div id="toast" class="toast">Data Copied!</div>
+  
+
+  <script>
+        // --- 邏輯 ---
+// --- 初始化讀取 ---
+try {
+    records = JSON.parse(localStorage.getItem('records')) || [];
+} catch (e) {
+    records = [];
+}
+        // 說明：定義全域變數，包括時間、狀態及陣列。
+        let startTime = 0;
+        let isRunning = false;
+        let isAudioMode = true;
+        let audioFileLoaded = false;
+        let laps = [];
+        let timerInterval;
+        let lastLapTime = 0;
+        let lapCount = 0;
+        let alertTimeout;
+        let sessionDate = null;
+        let audioStartTimeout;
+        let countdownTimeouts = [];
+        // 會話歷史陣列
+        let sessionHistory = [];
+        // 報告選項
+        let reportOptions = {
+            date: false,
+            startTime: false,
+            total: true,
+            gear: false,
+            dist: false,
+            laps: false,
+            table: true,
+            audioStart: false,
+            totalFromLastLap: false,
+            whatsAppFormat: false
+        };
+        const screenTimer = document.getElementById('screenTimer');
+        const screenSummary = document.getElementById('screenSummary');
+        const screenHistory = document.getElementById('screenHistory');
+       
+        const mainHeader = document.getElementById('mainHeader');
+        const mainBtn = document.getElementById('mainBtn');
+        const topResetBtn = document.getElementById('topResetBtn');
+        const tapArea = document.getElementById('tapArea');
+        const audioBtn = document.getElementById('audioBtn');
+        const audioInput = document.getElementById('audioInput');
+        const countdownAudio = document.getElementById('countdownAudio');
+        const settingsBtn = document.getElementById('settingsBtn');
+        const reportMenu = document.getElementById('reportMenu');
+        const summaryTable = document.getElementById('summaryTable');
+        const waitingTextEl = document.getElementById('waitingText');
+        const historyBtn = document.getElementById('historyBtn');
+        const closeHistoryBtn = document.getElementById('closeHistoryBtn');
+        const historyListEl = document.getElementById('historyList');
+        const csvBtn = document.getElementById('csvBtn');
+        const dlAllCsvBtn = document.getElementById('dlAllCsvBtn');
+       
+
+        // 輸入
+        const totalLapsInput = document.getElementById('totalLapsInput');
+        const gearFrontInput = document.getElementById('gearFront');
+        const gearRearInput = document.getElementById('gearRear');
+        const distInput = document.getElementById('distInput');
+        // 核取方塊
+        const optDate = document.getElementById('optDate');
+        const optStartTime = document.getElementById('optStartTime');
+        const optTotal = document.getElementById('optTotal');
+        const optGear = document.getElementById('optGear');
+        const optDist = document.getElementById('optDist');
+        const optLaps = document.getElementById('optLaps');
+        const optTable = document.getElementById('optTable');
+        const optAudioToggle = document.getElementById('optAudioToggle');
+        const optTotalMode = document.getElementById('optTotalMode');
+        const optWhatsApp = document.getElementById('optWhatsApp');
+        const lapCounterEl = document.getElementById('lapCounter');
+        const lapsRemainingEl = document.getElementById('lapsRemaining');
+        const lapInfoRow = document.getElementById('lapInfoRow');
+        const totalTimerEl = document.getElementById('totalTimer');
+        const runningLapTimerEl = document.getElementById('runningLapTimer');
+        const activeDisplayEl = document.getElementById('activeDisplay');
+        const coachDisplayEl = document.getElementById('coachDisplay');
+        const fullDisplayEl = document.getElementById('fullDisplay');
+        const diffDisplayEl = document.getElementById('diffDisplay');
+        const alertOverlay = document.getElementById('alertOverlay');
+        const alertText = document.getElementById('alertText');
+        const summaryBody = document.getElementById('summaryBody');
+        const finalTotalTimeEl = document.getElementById('finalTotalTime');
+        const summaryGearInfo = document.getElementById('summaryGearInfo');
+        const nextSessionBtn = document.getElementById('nextSessionBtn');
+        const shareBtn = document.getElementById('shareBtn');
+        const toast = document.getElementById('toast');
+
+        // --- 初始化設定及歷史 ---
+        // 說明：載入本地儲存的設定及歷史記錄。
+        function loadSettings() {
+            const saved = localStorage.getItem('wtc_report_options_v4');
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    reportOptions = { ...reportOptions, ...parsed };
+                } catch(e) {}
+            }
+            optDate.checked = reportOptions.date;
+            optStartTime.checked = reportOptions.startTime;
+            optTotal.checked = reportOptions.total;
+            optGear.checked = reportOptions.gear;
+            optDist.checked = reportOptions.dist;
+            optLaps.checked = reportOptions.laps;
+            optTable.checked = reportOptions.table;
+            optAudioToggle.checked = reportOptions.audioStart;
+            optTotalMode.checked = reportOptions.totalFromLastLap;
+            optWhatsApp.checked = reportOptions.whatsAppFormat;
+           
+            // 載入歷史
+            const savedHist = localStorage.getItem('wtc_session_history');
+            if (savedHist) {
+                try {
+                    sessionHistory = JSON.parse(savedHist);
+                } catch(e) { sessionHistory = []; }
+            }
+        }
+
+        // 說明：儲存報告選項至本地儲存，並更新UI。
+        function saveSettings() {
+            reportOptions = {
+                date: optDate.checked,
+                startTime: optStartTime.checked,
+                total: optTotal.checked,
+                gear: optGear.checked,
+                dist: optDist.checked,
+                laps: optLaps.checked,
+                table: optTable.checked,
+                audioStart: optAudioToggle.checked,
+                totalFromLastLap: optTotalMode.checked,
+                whatsAppFormat: optWhatsApp.checked
+            };
+            localStorage.setItem('wtc_report_options_v4', JSON.stringify(reportOptions));
+           
+            // UI 更新
+            summaryTable.style.display = reportOptions.table ? 'table' : 'none';
+            updateAudioBtnState();
+           
+            // 如果摘要畫面活躍，更新顯示
+            if(screenSummary.style.display === 'flex') {
+                 renderSummaryData();
+            }
+        }
+        [optDate, optStartTime, optTotal, optGear, optDist, optLaps, optTable, optAudioToggle, optTotalMode, optWhatsApp].forEach(el => {
+            el.addEventListener('change', saveSettings);
+        });
+
+// --- 歷史邏輯 ---
+
+// 說明：儲存目前會話至歷史陣列。
+function saveCurrentSession() {
+    if (laps.length === 0) return;
+    
+    const session = {
+        id: Date.now(),
+        date: sessionDate,
+        laps: [...laps],
+        gearF: gearFrontInput.value,
+        gearR: gearRearInput.value,
+        dist: distInput.value,
+        totalTimeRaw: Date.now() - startTime
+    };
+    
+    if(laps.length > 0) {
+         session.totalTimeRaw = laps[laps.length-1].totalTime;
+    }
+    sessionHistory.unshift(session);
+    // 增加歷史限制以模擬資料庫感覺
+    if (sessionHistory.length > 200) sessionHistory.pop();
+    localStorage.setItem('wtc_session_history', JSON.stringify(sessionHistory));
+}
+
+// 說明：新增清除所有歷史紀錄的功能。
+function clearAllHistory() {
+    // 1. 彈出確認視窗
+    if (confirm("⚠️ 確定要刪除所有歷史紀錄嗎？此動作無法還原。")) {
+        // 2. 清空全域變數陣列
+        sessionHistory = [];
+        
+        // 3. 移除 LocalStorage 儲存的數據
+        localStorage.removeItem('wtc_session_history');
+        
+        // 4. 即時清空畫面上的列表容器 (ID 須為 historyList)
+        const listContainer = document.getElementById('historyList');
+        if (listContainer) {
+            listContainer.innerHTML = '';
+        }
+        
+        // 5. 提示使用者 (如果有 showToast 函數就執行，否則用 alert)
+        if (typeof showToast === 'function') {
+            showToast("歷史紀錄已清空");
+        } else {
+            alert("歷史紀錄已清空");
+        }
+        
+        console.log("History cleared.");
+    }
+}
+
+// 說明：綁定按鈕點擊事件 (請確保 HTML 裡的 ID 是 clearAllBtn)
+document.getElementById('clearAllBtn')?.addEventListener('click', clearAllHistory);
+
+        // 說明：渲染歷史列表至畫面。
+        function renderHistoryList() {
+            historyListEl.innerHTML = "";
+            if (sessionHistory.length === 0) {
+                historyListEl.innerHTML = "<div style='color:#666; text-align:center; padding:20px;'>No history recorded</div>";
+                return;
+            }
+            sessionHistory.forEach(session => {
+                const date = new Date(session.date);
+                const dateStr = `${date.getDate()}/${date.getMonth()+1}/${date.getFullYear()} ${date.getHours()}:${String(date.getMinutes()).padStart(2,'0')}`;
+                const totalStr = formatTime(session.totalTimeRaw || (session.laps.length > 0 ? session.laps[session.laps.length-1].totalTime : 0));
+                const gearStr = (session.gearF && session.gearR) ? `${session.gearF}x${session.gearR}` : "";
+                const distStr = session.dist ? `${session.dist}m` : "";
+               
+                const div = document.createElement('div');
+                div.className = 'history-item';
+                div.innerHTML = `
+                    <div class="hist-info">
+                        <span class="hist-date">${dateStr}</span>
+                        <span class="hist-meta">${session.laps.length} Laps ${gearStr ? '| ' + gearStr : ''} ${distStr ? '| ' + distStr : ''}</span>
+                    </div>
+                    <span class="hist-main">${totalStr}</span>
+                `;
+                div.onclick = () => loadSessionFromHistory(session);
+                historyListEl.appendChild(div);
+            });
+        }
+
+
+
+        // 說明：從歷史載入會話並顯示摘要。
+        function loadSessionFromHistory(session) {
+            laps = session.laps;
+            sessionDate = new Date(session.date);
+            gearFrontInput.value = session.gearF || "";
+            gearRearInput.value = session.gearR || "";
+            distInput.value = session.dist || "";
+           
+            screenHistory.style.display = 'none';
+            finishSession(true);
+        }
+       
+        // --- CSV 匯出 (單一及全部) ---
+        // 說明：匯出目前會話至CSV檔案。
+        function exportToCSV() {
+            let csvContent = "\uFEFF"; // BOM 用於Excel
+           
+            const dateStr = getFormattedDate(sessionDate) + " " + getFormattedTime(sessionDate);
+            csvContent += `Date,${dateStr}\n`;
+           
+            const gear = getGearString();
+            if(gear) csvContent += `Gear,${gear}\n`;
+           
+            const dist = distInput.value;
+            if(dist) csvContent += `Distance,${dist}m\n`;
+           
+            const total = getTotalTimeDisplay();
+            csvContent += `Total Time,${total}\n\n`;
+            csvContent += "Lap,Total Time,Split Time,Diff\n";
+            laps.forEach(lap => {
+                const total = formatTime(lap.totalTime);
+                const split = (lap.splitTime / 1000).toFixed(3);
+                const diff = (lap.diff/1000).toFixed(2);
+                csvContent += `${lap.lapNum},${total},${split},${diff}\n`;
+            });
+            downloadCSV(csvContent, `cycle_timer_${Date.now()}.csv`);
+        }
+       
+        // 說明：匯出所有歷史至CSV檔案。
+        function exportAllHistoryToCSV() {
+            if (sessionHistory.length === 0) {
+                alert("No history to download.");
+                return;
+            }
+           
+            let csvContent = "\uFEFF";
+           
+            sessionHistory.forEach((session, index) => {
+                const d = new Date(session.date);
+                const dateStr = `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}`;
+                const timeStr = `${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;
+                const gear = (session.gearF && session.gearR) ? `${session.gearF}x${session.gearR}` : "N/A";
+                const dist = session.dist ? session.dist + "m" : "N/A";
+                const totalSessionTime = formatTime(session.totalTimeRaw);
+               
+                // 會話標頭區塊
+                csvContent += `SESSION ${index + 1}\n`;
+                csvContent += `Date,${dateStr}\n`;
+                csvContent += `Time,${timeStr}\n`;
+                csvContent += `Gear,${gear}\n`;
+                csvContent += `Dist,${dist}\n`;
+                csvContent += `Total,${totalSessionTime}\n`;
+               
+                // 表格標頭
+                csvContent += `Lap,Split,Total,Diff\n`;
+               
+                // 圈數行
+                session.laps.forEach(lap => {
+                    const split = (lap.splitTime / 1000).toFixed(3);
+                    const total = formatTime(lap.totalTime);
+                    const diff = (lap.diff/1000).toFixed(2);
+                    csvContent += `${lap.lapNum},${split},${total},${diff}\n`;
+                });
+               
+                // 空行分隔
+                csvContent += `\n\n`;
+            });
+           
+            downloadCSV(csvContent, `WTC_Full_History_${Date.now()}.csv`);
+        }
+       
+        // 說明：下載CSV檔案的輔助函數。
+        function downloadCSV(content, filename) {
+            const encodedUri = encodeURI("data:text/csv;charset=utf-8," + content);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", filename);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // --- 核心函數 ---
+        // 說明：設定按鈕點擊事件，切換報告菜單。
+        settingsBtn.onclick = (e) => {
+            e.stopPropagation();
+            reportMenu.classList.toggle('show');
+        };
+        // 歷史按鈕的明確觸摸處理器
+        historyBtn.addEventListener('click', (e) => {
+             e.stopPropagation();
+             renderHistoryList();
+             screenHistory.style.display = 'flex';
+        });
+        historyBtn.addEventListener('touchstart', (e) => {
+             e.preventDefault();
+             e.stopPropagation();
+             renderHistoryList();
+             screenHistory.style.display = 'flex';
+        });
+        closeHistoryBtn.addEventListener('click', () => {
+            screenHistory.style.display = 'none';
+        });
+        closeHistoryBtn.addEventListener('touchstart', (e) => {
+             e.preventDefault();
+             screenHistory.style.display = 'none';
+        });
+        document.addEventListener('click', (e) => {
+            if (!reportMenu.contains(e.target) && e.target !== settingsBtn) {
+                reportMenu.classList.remove('show');
+            }
+        });
+        loadSettings();
+       
+        csvBtn.onclick = (e) => {
+            e.stopPropagation();
+            exportToCSV();
+        };
+       
+        // --- 固定清除及下載全部按鈕 (直接點擊處理器) ---
+        // 說明：使用直接onclick確保無重複監聽器及標準行為。
+       
+        const bindTouchClick = (el, handler) => {
+            if(!el) return;
+            el.addEventListener('click', (e) => {
+                e.stopPropagation();
+                handler();
+            });
+            el.addEventListener('touchstart', (e) => {
+                e.preventDefault(); // 防止雙重觸發
+                e.stopPropagation();
+                handler();
+            });
+        };
+        bindTouchClick(dlAllCsvBtn, exportAllHistoryToCSV);
+
+        // 說明：格式化時間的輔助函數。
+        function formatTime(ms) {
+            let date = new Date(ms);
+            let m = date.getUTCMinutes();
+            let s = date.getUTCSeconds();
+            let mis = date.getUTCMilliseconds();
+            return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${mis.toString().padStart(3, '0')}`;
+        }
+
+        // 說明：格式化教練風格時間。
+        function formatCoachStyle(ms) {
+            let totalSeconds = ms / 1000;
+            let seconds = Math.floor(totalSeconds) % 10;
+            let tenths = Math.floor((totalSeconds * 10) % 10);
+            return `${seconds}.${tenths}`;
+        }
+
+        // 說明：顯示警示訊息。
+        function showAlert(message, color) {
+            alertText.textContent = message;
+            alertText.style.color = color || '#fff';
+            alertText.style.borderColor = color || '#fff';
+            alertOverlay.style.display = 'block';
+            clearTimeout(alertTimeout);
+            alertTimeout = setTimeout(() => { alertOverlay.style.display = 'none'; }, 2500);
+        }
+
+        // 說明：顯示吐司訊息。
+        function showToast(msg) {
+            toast.textContent = msg;
+            toast.style.display = 'block';
+            setTimeout(() => { toast.style.display = 'none'; }, 2000);
+        }
+
+        // 說明：更新計時器UI。
+        function updateTimerUI() {
+            if (!isRunning) return;
+            const now = Date.now();
+            totalTimerEl.textContent = formatTime(now - startTime);
+            runningLapTimerEl.textContent = formatTime(now - lastLapTime);
+            requestAnimationFrame(updateTimerUI);
+        }
+
+        // 說明：更新剩餘圈數顯示。
+        function updateLapsRemaining() {
+            const total = parseInt(totalLapsInput.value) || 0;
+            if (total > 0) {
+                const remaining = total - lapCount;
+                if (remaining >= 0) {
+                    lapsRemainingEl.textContent = `(${remaining})`;
+                    lapsRemainingEl.style.display = 'block';
+                } else {
+                    lapsRemainingEl.style.display = 'none';
+                }
+            } else {
+                lapsRemainingEl.style.display = 'none';
+            }
+        }
+
+        // --- 音頻初始化 ---
+        // 說明：初始化音頻，從雲端載入。
+        function initAudio() {
+            waitingTextEl.innerHTML = "LOADING AUDIO...";
+            audioBtn.classList.add('loading');
+           
+            countdownAudio.src = CLOUD_AUDIO_URL;
+            countdownAudio.crossOrigin = "anonymous";
+           
+            countdownAudio.oncanplaythrough = function() {
+                audioFileLoaded = true;
+                // 不強制覆蓋，依賴儲存狀態
+                audioBtn.classList.remove('loading');
+                updateAudioBtnState();
+            };
+           
+            countdownAudio.onerror = function() {
+                console.log("Cloud audio failed");
+                audioFileLoaded = false;
+                audioBtn.classList.remove('loading');
+                updateAudioBtnState();
+            };
+           
+            countdownAudio.load();
+        }
+        window.addEventListener('load', initAudio);
+
+// --- 500Hz / 1000Hz 場地單車起步音效 ---
+        function playTrackBeep(isFinal) {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+
+                // 根據要求：倒數 500Hz，起步 1000Hz
+                const freq = isFinal ? 990 : 490;
+                const duration = isFinal ? 0.8 : 0.4; // 倒數短響 0.4 秒，起步長響 0.8 秒
+
+                oscillator.type = 'square'; // 方波最適合這種標準電子嗶聲
+                oscillator.frequency.setValueAtTime(freq, audioCtx.currentTime);
+
+                // 音量控制：開頭快，收尾乾脆
+                gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+                gainNode.gain.linearRampToValueAtTime(0.5, audioCtx.currentTime + 0.01);
+                gainNode.gain.setValueAtTime(0.5, audioCtx.currentTime + duration - 0.01);
+                gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + duration);
+
+                oscillator.start(audioCtx.currentTime);
+                oscillator.stop(audioCtx.currentTime + duration);
+            } catch (e) {
+                console.error("Audio Context Error:", e);
+            }
+        }
+
+        // 音頻按鈕
+        bindTouchClick(audioBtn, () => {
+            optAudioToggle.checked = !optAudioToggle.checked;
+            reportOptions.audioStart = optAudioToggle.checked;
+            
+            // 點擊時初始化/解鎖 AudioContext
+            const tempCtx = new (window.AudioContext || window.webkitAudioContext)();
+            tempCtx.resume();
+            
+            saveSettings();
+            updateAudioBtnState();
+        });
+
+        // 說明：更新音頻按鈕狀態。
+        function updateAudioBtnState() {
+            if (optAudioToggle.checked) {
+                audioBtn.classList.add('active');
+                waitingTextEl.innerHTML = "AUDIO READY<br>TAP TO START";
+            } else {
+                audioBtn.classList.remove('active');
+                waitingTextEl.innerHTML = "TAP ANYWHERE<br>TO START";
+            }
+        }
+
+        // 說明：觸發開始，最後 5 秒倒數
+        function triggerStart() {
+            if (optAudioToggle.checked) {
+                waitingTextEl.innerHTML = "READY...";
+                document.querySelector('.header-left').style.opacity = '0';
+                document.querySelector('.header-left').style.pointerEvents = 'none';
+                
+                // 立即顯示重設按鈕
+                topResetBtn.style.display = 'flex';
+
+                const totalSeconds = 5;
+                
+                for (let i = totalSeconds; i >= 0; i--) {
+                    const delay = (totalSeconds - i) * 1000;
+                    
+                    let t = setTimeout(() => {
+                        if (i > 0) {
+                            // 5, 4, 3, 2, 1：500Hz 嗶聲
+                            waitingTextEl.innerHTML = `<span class="countdown-number">${i}</span>`;
+                            playTrackBeep(false); 
+                        } else {
+                            // 0：1000Hz 長響，出發！
+                            playTrackBeep(true);
+                            if (!isRunning) startSession();
+                        }
+                    }, delay);
+                    
+                    countdownTimeouts.push(t);
+                }
+            } else {
+                startSession();
+            }
+        }
+
+        // 說明：開始會話，初始化時間及狀態。
+        function startSession() {
+            if (isRunning) return;
+            isRunning = true;
+            startTime = Date.now();
+            sessionDate = new Date();
+            lastLapTime = startTime;
+            lapCount = 0;
+            laps = [];
+           
+            mainBtn.textContent = "FINISH";
+            mainBtn.className = "action-btn btn-finish";
+           
+            document.querySelector('.header-left').style.opacity = '0';
+            document.querySelector('.header-left').style.pointerEvents = 'none';
+           
+            topResetBtn.style.display = 'flex';
+            waitingTextEl.style.display = 'none';
+            waitingTextEl.innerHTML = "";
+           
+            activeDisplayEl.style.display = 'block';
+            alertOverlay.style.display = 'none';
+            coachDisplayEl.textContent = "0.0";
+            fullDisplayEl.textContent = "0.000";
+            diffDisplayEl.textContent = "";
+            lapCounterEl.textContent = "0";
+           
+            lapInfoRow.style.display = 'flex';
+            updateLapsRemaining();
+            runningLapTimerEl.textContent = "00:00.000";
+            tapArea.className = "tap-area bg-stable";
+            updateTimerUI();
+        }
+
+        // 說明：記錄一圈，計算時間差及狀態。
+        function lap() {
+            if (!isRunning) return;
+            const now = Date.now();
+            const lapDuration = now - lastLapTime;
+            const totalDuration = now - startTime;
+            lastLapTime = now;
+            lapCount++;
+            let diff = 0;
+            let colorClass = "bg-stable";
+            if (laps.length > 0) {
+                const prevLap = laps[laps.length - 1].splitTime;
+                diff = lapDuration - prevLap;
+                const diffSec = diff / 1000;
+               
+                if (Math.abs(diffSec) <= 0.3) {
+                    colorClass = "bg-stable";
+                } else if (diff < 0) {
+                    colorClass = "bg-faster";
+                } else {
+                    colorClass = "bg-slower";
+                }
+            }
+            laps.push({ lapNum: lapCount, splitTime: lapDuration, totalTime: totalDuration, diff: diff, status: colorClass });
+            lapCounterEl.textContent = lapCount;
+            updateLapsRemaining();
+            coachDisplayEl.textContent = formatCoachStyle(lapDuration);
+            fullDisplayEl.textContent = (lapDuration / 1000).toFixed(3);
+           
+            if (lapCount > 1) {
+                const diffSec = (diff / 1000).toFixed(2);
+                const sign = diff > 0 ? "+" : "";
+                diffDisplayEl.textContent = `${sign}${diffSec}s`;
+            } else {
+                diffDisplayEl.textContent = "Start";
+            }
+            tapArea.className = `tap-area ${colorClass}`;
+            const totalLaps = parseInt(totalLapsInput.value);
+            if (!isNaN(totalLaps) && totalLaps > 0) {
+                const remaining = totalLaps - lapCount;
+                if (remaining === 10) showAlert("10 LAPS LEFT", "#ffd600");
+                else if (remaining === 5) showAlert("5 LAPS LEFT", "#ff6d00");
+                else if (remaining === 1) showAlert("LAST LAP", "#ff1744");
+                else if (remaining === 0) showAlert("FINISHED", "#ff1744");
+            }
+        }
+
+        // 說明：取得齒輪字串。
+        function getGearString() {
+            const front = gearFrontInput.value;
+            const rear = gearRearInput.value;
+            if (front && rear) {
+                return `${front}x${rear}`;
+            }
+            return "";
+        }
+
+        // 說明：取得總時間顯示，依選項決定使用最後一圈。
+        function getTotalTimeDisplay() {
+            if (reportOptions.totalFromLastLap && laps.length > 0) {
+                return formatTime(laps[laps.length-1].totalTime);
+            }
+            const finalTime = laps.length > 0 ? laps[laps.length-1].totalTime : 0;
+            return formatTime(finalTime);
+        }
+
+        // 說明：渲染摘要資料至表格。
+        function renderSummaryData() {
+            finalTotalTimeEl.textContent = getTotalTimeDisplay();
+           
+            const gearInfo = getGearString();
+            summaryGearInfo.textContent = gearInfo ? `Gear: ${gearInfo}` : "";
+            summaryBody.innerHTML = "";
+            laps.forEach(lap => {
+                const tr = document.createElement('tr');
+                let diffText = lap.lapNum === 1 ? "-" : (lap.diff > 0 ? `+${(lap.diff/1000).toFixed(2)}` : (lap.diff/1000).toFixed(2));
+               
+                let rowClass = "row-stable";
+                if (lap.status === "bg-faster") rowClass = "row-faster";
+                if (lap.status === "bg-slower") rowClass = "row-slower";
+                tr.innerHTML = `<td class="row-lap-num">${lap.lapNum}</td><td style="color:#fff;">${formatTime(lap.totalTime)}</td><td class="${rowClass}" style="font-size:3.5vmin;">${(lap.splitTime / 1000).toFixed(3)}</td><td class="${rowClass}">${diffText}</td>`;
+                summaryBody.appendChild(tr);
+            });
+        }
+
+        // 說明：結束會話，顯示摘要畫面。
+        function finishSession(viewOnly = false) {
+            if (!viewOnly) {
+                if (!isRunning) return;
+                isRunning = false;
+                saveCurrentSession();
+            }
+            screenTimer.style.display = 'none';
+            screenSummary.style.display = 'flex';
+           
+            renderSummaryData();
+        }
+
+        // 說明：重設所有狀態及UI。
+        function resetAll() {
+            isRunning = false;
+            startTime = 0;
+            laps = [];
+            lapCount = 0;
+            alertOverlay.style.display = 'none';
+           
+            if (audioStartTimeout) clearTimeout(audioStartTimeout);
+            countdownTimeouts.forEach(t => clearTimeout(t));
+            countdownTimeouts = [];
+            countdownAudio.pause();
+            countdownAudio.currentTime = 0;
+            screenSummary.style.display = 'none';
+            screenTimer.style.display = 'flex';
+           
+            mainBtn.textContent = "START";
+            mainBtn.className = "action-btn btn-start";
+           
+            document.querySelector('.header-left').style.opacity = '1';
+            document.querySelector('.header-left').style.pointerEvents = 'auto';
+           
+            // 重新檢查等待文字的狀態邏輯
+            updateAudioBtnState();
+            topResetBtn.style.display = 'none';
+            tapArea.className = "tap-area";
+            activeDisplayEl.style.display = 'none';
+            waitingTextEl.style.display = 'block';
+           
+            totalTimerEl.textContent = "00:00.00";
+            runningLapTimerEl.textContent = "00:00.00";
+            lapCounterEl.textContent = "0";
+            lapInfoRow.style.display = 'none';
+            lapsRemainingEl.style.display = 'none';
+        }
+
+        // 說明：取得格式化日期。
+        function getFormattedDate(d) {
+            const date = d || new Date();
+            const day = String(date.getDate()).padStart(2, '0');
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const year = String(date.getFullYear()).slice(-2);
+            return `${day}/${month}/${year}`;
+        }
+       
+        // 說明：取得格式化時間。
+        function getFormattedTime(d) {
+             const date = d || new Date();
+             return date.toLocaleTimeString([], { hour12: false });
+        }
+
+        // 說明：產生分享文字，依選項格式化。
+        function generateShareText() {
+            const dateStr = getFormattedDate(sessionDate);
+            const timeStr = getFormattedTime(sessionDate);
+           
+            let text = "";
+           
+            if (reportOptions.whatsAppFormat) {
+                if(reportOptions.dist || reportOptions.gear) {
+                   const gear = getGearString();
+                   text += `🚴 *WTC Cycle Stats*\n`;
+                   if(reportOptions.dist && distInput.value) text += `📏 ${distInput.value}m `;
+                   if(reportOptions.gear && gear) text += `⚙️ ${gear}`;
+                   text += `\n\n`;
+                }
+                if(reportOptions.date) text += `📅 ${dateStr} ${timeStr}\n`;
+                if(reportOptions.total) text += `⏱️ *Total: ${getTotalTimeDisplay()}*\n`;
+                if(reportOptions.laps) text += `🔄 Laps: ${laps.length}\n`;
+               
+                if (reportOptions.table && laps.length > 0) {
+                    text += `\n`;
+                    laps.forEach(l => {
+                       const split = (l.splitTime / 1000).toFixed(3);
+                       const diff = l.lapNum === 1 ? "-" : (l.diff > 0 ? `+${(l.diff/1000).toFixed(2)}` : (l.diff/1000).toFixed(2));
+                       text += `L${l.lapNum}: *${split}* (${diff})\n`;
+                    });
+                }
+            } else {
+                let headerParts = [];
+                if (reportOptions.dist) {
+                    const dist = distInput.value ? `${distInput.value}m` : "";
+                    if(dist) headerParts.push(dist);
+                }
+                if (reportOptions.gear) {
+                    const gear = getGearString();
+                    if(gear) headerParts.push(gear);
+                }
+                const headerInfo = headerParts.join(" | ");
+                if(headerInfo) text += `${headerInfo}\n`;
+               
+                if(reportOptions.date) text += `Date: ${dateStr}\n`;
+                if(reportOptions.startTime) text += `Time: ${timeStr}\n`;
+                if(reportOptions.total) text += `Total: ${getTotalTimeDisplay()}\n`;
+                if(reportOptions.laps) text += `Laps: ${laps.length}\n`;
+               
+                if (reportOptions.table && laps.length > 0) {
+                    text += `----------------------\n`;
+                    let headers = ['Lap', 'Time', 'Split', 'Diff'];
+                    text += headers.join(' | ') + '\n';
+                   
+                    laps.forEach(lap => {
+                        let row = [`${lap.lapNum.toString().padEnd(3)}`];
+                        row.push(formatTime(lap.totalTime));
+                        let split = (lap.splitTime / 1000).toFixed(3);
+                        row.push(split.padEnd(8));
+                        let diffText = lap.lapNum === 1 ? "-" : (lap.diff > 0 ? `+${(lap.diff/1000).toFixed(2)}` : (lap.diff/1000).toFixed(2));
+                        row.push(diffText);
+                        text += row.join(' | ') + '\n';
+                    });
+                }
+            }
+           
+            return text;
+        }
+
+        // 主要按鈕事件
+        mainBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (!isRunning) triggerStart();
+            else finishSession();
+        });
+       
+        // 說明：處理點擊事件，忽略輸入及按鈕。
+        function handleTap(e) {
+            // 忽略如果點擊輸入或按鈕
+            if (e.target.closest('.floating-action-container') ||
+                e.target.closest('.header') ||
+                e.target.closest('.summary-header-bar') ||
+                e.target.closest('.report-options-menu') ||
+                e.target.closest('.screen-history') ||
+                e.target.tagName === 'INPUT' ||
+                e.target.id === 'topResetBtn') return;
+            if (!isRunning) {
+                if(e.type === 'touchstart') e.preventDefault();
+                triggerStart();
+            } else {
+                if(e.type === 'touchstart') e.preventDefault();
+                lap();
+            }
+        }
+        tapArea.addEventListener('touchstart', handleTap, {passive: false});
+        tapArea.addEventListener('mousedown', handleTap);
+
+        // 立即重設 - 使用綁定監聽器
+        bindTouchClick(topResetBtn, resetAll);
+        bindTouchClick(nextSessionBtn, resetAll);
+       
+        // 分享按鈕綁定
+        bindTouchClick(shareBtn, async () => {
+            const text = generateShareText();
+            try {
+                if (navigator.share) {
+                    await navigator.share({ text: text });
+                } else { throw new Error("Web Share API not supported"); }
+            } catch (err) { copyToClipboard(text); }
+        });
+
+        // 說明：複製文字至剪貼簿。
+        function copyToClipboard(text) {
+             if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(() => { showToast("Data Copied!"); }).catch(err => { textAreaCopy(text); });
+             } else { textAreaCopy(text); }
+        }
+
+        // 說明：使用文字區域複製的後備方法。
+        function textAreaCopy(text) {
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+                document.execCommand("Copy");
+                showToast("Data Copied!");
+            } catch (err) {
+                alert("Copy failed. Please select and copy manually:\n\n" + text);
+            }
+            document.body.removeChild(textArea);
+        }
+
+        // 說明：處理觸摸移動，僅在非滾動區域防止預設。
+        document.addEventListener('touchmove', function(event) {
+            // 僅在計時器畫面或主要容器防止預設，不影響摘要內容
+            if (!event.target.closest('.summary-content') && !event.target.closest('.history-list')) {
+                // 保持滾動區域的預設行為
+            }
+        }, { passive: false });
+    </script>
+</body>
+</html>
