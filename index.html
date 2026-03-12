@@ -1768,20 +1768,38 @@ document.getElementById('clearAllBtn')?.addEventListener('click', clearAllHistor
 // --- 全螢幕功能邏輯 ---
         const fullscreenBtn = document.getElementById('fullscreenBtn');
         if (fullscreenBtn) {
-            function toggleFullScreen() {
-                if (!document.fullscreenElement) {
-                    document.documentElement.requestFullscreen().catch(err => {
-                        console.log(`Error: ${err.message}`);
-                        showToast("當前設備或瀏覽器不支援全螢幕");
-                    });
+            bindTouchClick(fullscreenBtn, () => {
+                // 檢查係咪未進入全螢幕狀態
+                if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+                    // 1. 支援標準全螢幕嘅瀏覽器 (Android / 電腦版 Chrome)
+                    if (document.documentElement.requestFullscreen) {
+                        document.documentElement.requestFullscreen().catch(err => {
+                            console.log(`Error: ${err.message}`);
+                            showFallbackAlert();
+                        });
+                    } 
+                    // 2. 支援 webkit 核心全螢幕嘅瀏覽器 (部分舊版 / iPad Safari)
+                    else if (document.documentElement.webkitRequestFullscreen) {
+                        document.documentElement.webkitRequestFullscreen();
+                    } 
+                    // 3. 完全唔支援嘅瀏覽器 (例如 iPad 嘅 Chrome)
+                    else {
+                        showFallbackAlert();
+                    }
                 } else {
+                    // 退出全螢幕
                     if (document.exitFullscreen) {
                         document.exitFullscreen();
+                    } else if (document.webkitExitFullscreen) {
+                        document.webkitExitFullscreen();
                     }
                 }
-            }
-            // 使用內建的 bindTouchClick 綁定點擊事件
-            bindTouchClick(fullscreenBtn, toggleFullScreen);
+            });
+        }
+
+        // 🟢 【新增】：專門應付 Apple 限制嘅溫馨提示
+        function showFallbackAlert() {
+            alert("Apple 限制咗此瀏覽器嘅全螢幕功能 🥲\n\n想完美全螢幕？請撳瀏覽器右上角嘅「分享」掣，然後揀「加入主畫面 (Add to Home Screen)」。\n\n之後喺 iPad 桌面直接打開個 App，就會係 100% 完美全螢幕㗎喇！");
         }
 
     </script>
