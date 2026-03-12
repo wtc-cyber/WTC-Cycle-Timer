@@ -698,37 +698,34 @@
         <div id="mainHeader" class="header">
             <div class="header-left">
                 <!-- 第一行: 齒輪及距離 -->
-                <div class="header-row">
+         <div class="header-row">
                     <div class="input-group">
                         <span class="label-text">GEAR</span>
-                        <!-- 空值 -->
                         <input type="number" id="gearFront" class="input-gear" placeholder="F" value="">
                         <span style="color:#888;">x</span>
-                        <!-- 空值 -->
                         <input type="number" id="gearRear" class="input-gear" placeholder="R" value="">
                     </div>
                     <div class="input-group">
                         <span class="label-text">DIST</span>
-                        <!-- 預設空值，佔位符 m -->
                         <input type="number" id="distInput" class="input-dist" placeholder="m" value="">
                         <span style="font-size:0.7rem;">m</span>
                     </div>
                 </div>
-                <!-- 第二行: 圈數 + 音頻 + 歷史 -->
                 <div class="header-row">
                     <div class="input-group">
                         <span class="label-text">LAPS</span>
                         <input type="number" id="totalLapsInput" class="input-laps" placeholder="">
                     </div>
-                    <!-- 音頻按鈕 -->
                     <button id="audioBtn" class="btn-audio">🎵</button>
-                    <!-- 歷史按鈕 -->
+
                     <button id="historyBtn" class="btn-icon-round">📜</button>
+
+                    <button id="fullscreenBtn" class="btn-icon-round">⛶</button>
                 </div>
             </div>
-         <div class="header-right">
-    <button id="fullscreenBtn" class="btn-icon-round" style="font-size: 1.5rem;">⛶</button>
-</div>
+            
+            <div class="header-right">
+                </div>
         </div>
         <!-- 隱藏音頻輸入及播放器 -->
         <input type="file" id="audioInput" accept="audio/*" style="display:none;">
@@ -1375,9 +1372,9 @@ document.getElementById('clearAllBtn')?.addEventListener('click', clearAllHistor
             window.isCountingDown = false;
         }
 
-        // 說明：觸發開始，最後 5 秒倒數
+     // 說明：觸發開始，最後 5 秒倒數
         function triggerStart() {
-            // 防呆：如果已經在倒數中，或已經開始計時，就直接 return (忽略點擊)
+            // 防呆：如果已經在倒數中，或已經開始計時，就忽略點擊
             if (window.isCountingDown || isRunning) return;
 
             if (optAudioToggle.checked) {
@@ -1385,6 +1382,10 @@ document.getElementById('clearAllBtn')?.addEventListener('click', clearAllHistor
                 waitingTextEl.innerHTML = "READY...";
                 document.querySelector('.header-left').style.opacity = '0';
                 document.querySelector('.header-left').style.pointerEvents = 'none';
+                
+                // 🚫 【防狂撳機制】：徹底鎖死大掣同點擊區，防止干擾手機音效引擎
+                tapArea.style.pointerEvents = 'none';
+                mainBtn.style.pointerEvents = 'none';
                 
                 // 立即顯示重設按鈕
                 topResetBtn.style.display = 'flex';
@@ -1395,7 +1396,7 @@ document.getElementById('clearAllBtn')?.addEventListener('click', clearAllHistor
                     const delay = (totalSeconds - i) * 1000;
                     
                     let t = setTimeout(() => {
-                        // 防呆：如果中途按咗 Reset 終止咗倒數，就唔好繼續發聲或強行開始
+                        // 防呆：如果中途按咗 Reset 終止咗倒數，就唔好繼續發聲
                         if (!window.isCountingDown) return;
 
                         if (i > 0) {
@@ -1405,7 +1406,12 @@ document.getElementById('clearAllBtn')?.addEventListener('click', clearAllHistor
                         } else {
                             // 0：1000Hz 長響，出發！
                             playTrackBeep(true);
-                            window.isCountingDown = false; // 倒數完畢，解除鎖定
+                            window.isCountingDown = false; // 倒數完畢，解除防呆變數
+                            
+                            // 🟢 【防狂撳機制】：倒數完畢，解鎖畫面，等用家可以正常撳圈數
+                            tapArea.style.pointerEvents = 'auto';
+                            mainBtn.style.pointerEvents = 'auto';
+
                             if (!isRunning) startSession();
                         }
                     }, delay);
@@ -1551,7 +1557,12 @@ document.getElementById('clearAllBtn')?.addEventListener('click', clearAllHistor
 
 // 說明：重設所有狀態及UI。
         function resetAll() {
-            window.isCountingDown = false; // <--- 【新增呢行】確保重設時，解除倒數防呆鎖定
+            window.isCountingDown = false; // <--- 解除倒數防呆鎖定
+            
+            // 🟢 【防狂撳機制】：重設時，確保畫面點擊區及大掣解鎖
+            tapArea.style.pointerEvents = 'auto';
+            mainBtn.style.pointerEvents = 'auto';
+
             isRunning = false;
             startTime = 0;
             laps = [];
