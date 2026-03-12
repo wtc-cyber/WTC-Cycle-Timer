@@ -6,7 +6,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="mobile-web-app-capable" content="yes">
-    <title>WTC Cycle Timer v6.1</title>
+    <title>WTC Cycle Timer v6.2</title>
     <style>
         /* --- 全域重設及變數 --- */
         /* 說明：定義根元素變數，包括顏色主題；重設所有元素的盒模型及點擊高亮效果。 */
@@ -726,9 +726,9 @@
                     <button id="historyBtn" class="btn-icon-round">📜</button>
                 </div>
             </div>
-            <div class="header-right">
-               <!-- 右側空置 -->
-            </div>
+         <div class="header-right">
+    <button id="fullscreenBtn" class="btn-icon-round" style="font-size: 1.5rem;">⛶</button>
+</div>
         </div>
         <!-- 隱藏音頻輸入及播放器 -->
         <input type="file" id="audioInput" accept="audio/*" style="display:none;">
@@ -744,7 +744,7 @@
                     <div id="lapCounter">0</div>
                 </div>
                 <div id="lapsRemaining"></div>
-                <div class="branding-text">by Woody Wong v6.1</div>
+                <div class="branding-text">by Woody Wong v6.2</div>
             </div>
            
             <!-- 右上角: 總時間 + 運行圈時間 -->
@@ -881,7 +881,7 @@ try {
             laps: false,
             table: true,
             audioStart: false,
-            totalFromLastLap: true,
+            totalFromLastLap: false,
             whatsAppFormat: false
         };
         const screenTimer = document.getElementById('screenTimer');
@@ -1370,9 +1370,18 @@ document.getElementById('clearAllBtn')?.addEventListener('click', clearAllHistor
             }
         }
 
+       // 說明：定義防呆變數 (用嚟記錄係咪倒數緊)
+        if (typeof window.isCountingDown === 'undefined') {
+            window.isCountingDown = false;
+        }
+
         // 說明：觸發開始，最後 5 秒倒數
         function triggerStart() {
+            // 防呆：如果已經在倒數中，或已經開始計時，就直接 return (忽略點擊)
+            if (window.isCountingDown || isRunning) return;
+
             if (optAudioToggle.checked) {
+                window.isCountingDown = true; // 鎖定狀態：開始倒數
                 waitingTextEl.innerHTML = "READY...";
                 document.querySelector('.header-left').style.opacity = '0';
                 document.querySelector('.header-left').style.pointerEvents = 'none';
@@ -1386,6 +1395,9 @@ document.getElementById('clearAllBtn')?.addEventListener('click', clearAllHistor
                     const delay = (totalSeconds - i) * 1000;
                     
                     let t = setTimeout(() => {
+                        // 防呆：如果中途按咗 Reset 終止咗倒數，就唔好繼續發聲或強行開始
+                        if (!window.isCountingDown) return;
+
                         if (i > 0) {
                             // 5, 4, 3, 2, 1：500Hz 嗶聲
                             waitingTextEl.innerHTML = `<span class="countdown-number">${i}</span>`;
@@ -1393,6 +1405,7 @@ document.getElementById('clearAllBtn')?.addEventListener('click', clearAllHistor
                         } else {
                             // 0：1000Hz 長響，出發！
                             playTrackBeep(true);
+                            window.isCountingDown = false; // 倒數完畢，解除鎖定
                             if (!isRunning) startSession();
                         }
                     }, delay);
@@ -1536,14 +1549,15 @@ document.getElementById('clearAllBtn')?.addEventListener('click', clearAllHistor
             renderSummaryData();
         }
 
-        // 說明：重設所有狀態及UI。
+// 說明：重設所有狀態及UI。
         function resetAll() {
+            window.isCountingDown = false; // <--- 【新增呢行】確保重設時，解除倒數防呆鎖定
             isRunning = false;
             startTime = 0;
             laps = [];
             lapCount = 0;
             alertOverlay.style.display = 'none';
-           
+            
             if (audioStartTimeout) clearTimeout(audioStartTimeout);
             countdownTimeouts.forEach(t => clearTimeout(t));
             countdownTimeouts = [];
@@ -1551,20 +1565,20 @@ document.getElementById('clearAllBtn')?.addEventListener('click', clearAllHistor
             countdownAudio.currentTime = 0;
             screenSummary.style.display = 'none';
             screenTimer.style.display = 'flex';
-           
+            
             mainBtn.textContent = "START";
             mainBtn.className = "action-btn btn-start";
-           
+            
             document.querySelector('.header-left').style.opacity = '1';
             document.querySelector('.header-left').style.pointerEvents = 'auto';
-           
+            
             // 重新檢查等待文字的狀態邏輯
             updateAudioBtnState();
             topResetBtn.style.display = 'none';
             tapArea.className = "tap-area";
             activeDisplayEl.style.display = 'none';
             waitingTextEl.style.display = 'block';
-           
+            
             totalTimerEl.textContent = "00:00.00";
             runningLapTimerEl.textContent = "00:00.00";
             lapCounterEl.textContent = "0";
@@ -1723,7 +1737,26 @@ document.getElementById('clearAllBtn')?.addEventListener('click', clearAllHistor
                 // 保持滾動區域的預設行為
             }
         }, { passive: false });
+
+// --- 全螢幕功能邏輯 ---
+        const fullscreenBtn = document.getElementById('fullscreenBtn');
+        if (fullscreenBtn) {
+            function toggleFullScreen() {
+                if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen().catch(err => {
+                        console.log(`Error: ${err.message}`);
+                        showToast("當前設備或瀏覽器不支援全螢幕");
+                    });
+                } else {
+                    if (document.exitFullscreen) {
+                        document.exitFullscreen();
+                    }
+                }
+            }
+            // 使用內建的 bindTouchClick 綁定點擊事件
+            bindTouchClick(fullscreenBtn, toggleFullScreen);
+        }
+
     </script>
 </body>
 </html>
-
