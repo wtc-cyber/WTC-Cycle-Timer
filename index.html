@@ -1316,7 +1316,12 @@ document.getElementById('clearAllBtn')?.addEventListener('click', clearAllHistor
 // --- 500Hz / 1000Hz 場地單車起步音效 ---
         function playTrackBeep(isFinal) {
             try {
-                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                // 🟢 核心修復：全域共用同一個音效引擎，避免超過瀏覽器 6 個的上限
+                if (!window.sharedAudioCtx) {
+                    window.sharedAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                const audioCtx = window.sharedAudioCtx; // 使用共用的引擎
+
                 const oscillator = audioCtx.createOscillator();
                 const gainNode = audioCtx.createGain();
 
@@ -1372,10 +1377,21 @@ document.getElementById('clearAllBtn')?.addEventListener('click', clearAllHistor
             window.isCountingDown = false;
         }
 
-     // 說明：觸發開始，最後 5 秒倒數
+// 說明：觸發開始，最後 5 秒倒數
         function triggerStart() {
             // 防呆：如果已經在倒數中，或已經開始計時，就忽略點擊
             if (window.isCountingDown || isRunning) return;
+
+            // 🟢 【新增這段】：在手指按下按鈕的瞬間，初始化並喚醒共用音效引擎
+            try {
+                if (!window.sharedAudioCtx) {
+                    window.sharedAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (window.sharedAudioCtx.state === 'suspended') {
+                    window.sharedAudioCtx.resume();
+                }
+            } catch (e) { console.log("Audio Resume Error:", e); }
+            // -----------------------------------------------------------
 
             if (optAudioToggle.checked) {
                 window.isCountingDown = true; // 鎖定狀態：開始倒數
