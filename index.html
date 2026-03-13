@@ -6,7 +6,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="mobile-web-app-capable" content="yes">
-    <title>WTC Cycle Timer v6.2</title>
+    <title>WTC Cycle Timer v6.2.1</title>
     <style>
         /* --- 全域重設及變數 --- */
         /* 說明：定義根元素變數，包括顏色主題；重設所有元素的盒模型及點擊高亮效果。 */
@@ -741,7 +741,7 @@
                     <div id="lapCounter">0</div>
                 </div>
                 <div id="lapsRemaining"></div>
-                <div class="branding-text">by Woody Wong v6.2</div>
+                <div class="branding-text">by Woody Wong v6.2.1</div>
             </div>
            
             <!-- 右上角: 總時間 + 運行圈時間 -->
@@ -1316,11 +1316,10 @@ document.getElementById('clearAllBtn')?.addEventListener('click', clearAllHistor
 // --- 500Hz / 1000Hz 場地單車起步音效 ---
         function playTrackBeep(isFinal) {
             try {
-                // 🟢 核心修復：全域共用同一個音效引擎，避免超過瀏覽器 6 個的上限
                 if (!window.sharedAudioCtx) {
                     window.sharedAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 }
-                const audioCtx = window.sharedAudioCtx; // 使用共用的引擎
+                const audioCtx = window.sharedAudioCtx;
 
                 const oscillator = audioCtx.createOscillator();
                 const gainNode = audioCtx.createGain();
@@ -1328,21 +1327,25 @@ document.getElementById('clearAllBtn')?.addEventListener('click', clearAllHistor
                 oscillator.connect(gainNode);
                 gainNode.connect(audioCtx.destination);
 
-                // 根據要求：倒數 500Hz，起步 1000Hz
                 const freq = isFinal ? 990 : 490;
-                const duration = isFinal ? 0.8 : 0.4; // 倒數短響 0.4 秒，起步長響 0.8 秒
+                const duration = isFinal ? 0.8 : 0.4;
 
-                oscillator.type = 'square'; // 方波最適合這種標準電子嗶聲
-                oscillator.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                oscillator.type = 'square'; 
 
-                // 音量控制：開頭快，收尾乾脆
-                gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
-                gainNode.gain.linearRampToValueAtTime(0.5, audioCtx.currentTime + 0.01);
-                gainNode.gain.setValueAtTime(0.5, audioCtx.currentTime + duration - 0.01);
-                gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + duration);
+                // 🟢 核心修復：加入 0.05 秒緩衝 (Buffer)
+                // 等手機 CPU 同喇叭有足夠時間 Wake up，解決第一下「嗶」聲被截斷/唔準確嘅問題
+                const startTime = audioCtx.currentTime + 0.05;
 
-                oscillator.start(audioCtx.currentTime);
-                oscillator.stop(audioCtx.currentTime + duration);
+                oscillator.frequency.setValueAtTime(freq, startTime);
+
+                // 音量控制：所有時間點都要基於 startTime
+                gainNode.gain.setValueAtTime(0, startTime);
+                gainNode.gain.linearRampToValueAtTime(0.5, startTime + 0.01);
+                gainNode.gain.setValueAtTime(0.5, startTime + duration - 0.01);
+                gainNode.gain.linearRampToValueAtTime(0, startTime + duration);
+
+                oscillator.start(startTime);
+                oscillator.stop(startTime + duration);
             } catch (e) {
                 console.error("Audio Context Error:", e);
             }
