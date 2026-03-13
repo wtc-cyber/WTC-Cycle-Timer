@@ -1381,11 +1381,38 @@ document.getElementById('clearAllBtn')?.addEventListener('click', clearAllHistor
         }
 
 // 說明：觸發開始，最後 5 秒倒數
-        function triggerStart() {
+        // 🟢 注意：加咗個 'e' 喺括號入面接收點擊事件
+        function triggerStart(e) {
+            
+            // 🟢 【新增防誤觸機制：邊緣死區 (Edge Dead Zone)】
+            // 防止手機掃邊緣退出 App 時誤觸開始計時
+            if (e) {
+                let x = e.clientX;
+                let y = e.clientY;
+                
+                // 兼容手機 Touch 事件
+                if (e.touches && e.touches.length > 0) {
+                    x = e.touches[0].clientX;
+                    y = e.touches[0].clientY;
+                }
+
+                if (x !== undefined && y !== undefined) {
+                    const screenW = window.innerWidth;
+                    const screenH = window.innerHeight;
+                    const edgeMargin = 60; // 邊緣 60px 範圍為「無效區」(大概一隻手指闊)
+
+                    // 判斷：如果手指撳喺上下左右嘅邊緣
+                    if (x < edgeMargin || x > screenW - edgeMargin || y < edgeMargin || y > screenH - edgeMargin) {
+                        console.log("偵測到邊緣點擊 (可能係系統手勢)，忽略！");
+                        return; // 終止執行，唔會開始計時！
+                    }
+                }
+            }
+
             // 防呆：如果已經在倒數中，或已經開始計時，就忽略點擊
             if (window.isCountingDown || isRunning) return;
 
-            // 🟢 【新增這段】：在手指按下按鈕的瞬間，初始化並喚醒共用音效引擎
+            // 在手指按下按鈕的瞬間，初始化並喚醒共用音效引擎
             try {
                 if (!window.sharedAudioCtx) {
                     window.sharedAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -1393,7 +1420,7 @@ document.getElementById('clearAllBtn')?.addEventListener('click', clearAllHistor
                 if (window.sharedAudioCtx.state === 'suspended') {
                     window.sharedAudioCtx.resume();
                 }
-            } catch (e) { console.log("Audio Resume Error:", e); }
+            } catch (err) { console.log("Audio Resume Error:", err); }
             // -----------------------------------------------------------
 
             if (optAudioToggle.checked) {
@@ -1419,19 +1446,29 @@ document.getElementById('clearAllBtn')?.addEventListener('click', clearAllHistor
                         if (!window.isCountingDown) return;
 
                         if (i > 0) {
-                            // 5, 4, 3, 2, 1：500Hz 嗶聲
-                            waitingTextEl.innerHTML = `<span class="countdown-number">${i}</span>`;
+                            // 5, 4, 3, 2, 1：500Hz 嗶聲 (內置 50ms 緩衝)
                             playTrackBeep(false); 
-                        } else {
-                            // 0：1000Hz 長響，出發！
-                            playTrackBeep(true);
-                            window.isCountingDown = false; // 倒數完畢，解除防呆變數
                             
-                            // 🟢 【防狂撳機制】：倒數完畢，解鎖畫面，等用家可以正常撳圈數
-                            tapArea.style.pointerEvents = 'auto';
-                            mainBtn.style.pointerEvents = 'auto';
+                            // 🟢 延遲 50ms 轉數字，確保視覺同聽覺完美同步
+                            setTimeout(() => {
+                                waitingTextEl.innerHTML = `<span class="countdown-number">${i}</span>`;
+                            }, 50);
+                            
+                        } else {
+                            // 0：1000Hz 長響出發！(內置 50ms 緩衝)
+                            playTrackBeep(true);
+                            
+                            // 🟢 核心修正：延遲 50ms 先開始計時，解決「偷步」微小時間差
+                            setTimeout(() => {
+                                window.isCountingDown = false; // 倒數完畢
+                                
+                                // 🟢 【防狂撳機制】：倒數完畢，解鎖畫面，等用家可以正常撳圈數
+                                tapArea.style.pointerEvents = 'auto';
+                                mainBtn.style.pointerEvents = 'auto';
 
-                            if (!isRunning) startSession();
+                                // 完美對齊聲音，正式開始計時！
+                                if (!isRunning) startSession();
+                            }, 50);
                         }
                     }, delay);
                     
