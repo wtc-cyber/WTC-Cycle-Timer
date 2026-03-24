@@ -1425,7 +1425,10 @@ document.getElementById('clearAllBtn')?.addEventListener('click', clearAllHistor
 
             if (optAudioToggle.checked) {
                 window.isCountingDown = true; // 鎖定狀態：開始倒數
-                waitingTextEl.innerHTML = "READY...";
+                
+                // 🟢 修改：清空字串，畫面會乾淨留白 1 秒，取代原本嘅 "READY..."
+                waitingTextEl.innerHTML = ""; 
+                
                 document.querySelector('.header-left').style.opacity = '0';
                 document.querySelector('.header-left').style.pointerEvents = 'none';
                 
@@ -1439,7 +1442,8 @@ document.getElementById('clearAllBtn')?.addEventListener('click', clearAllHistor
                 const totalSeconds = 5;
                 
                 for (let i = totalSeconds; i >= 0; i--) {
-                    const delay = (totalSeconds - i) * 1000;
+                    // 🟢 修改：加 1000 毫秒 (1秒)，呢 1 秒就係無字、無聲嘅純緩衝預備時間！
+                    const delay = (totalSeconds - i) * 1000 + 1000; 
                     
                     let t = setTimeout(() => {
                         // 防呆：如果中途按咗 Reset 終止咗倒數，就唔好繼續發聲
