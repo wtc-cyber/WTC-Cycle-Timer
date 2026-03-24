@@ -1443,7 +1443,7 @@ document.getElementById('clearAllBtn')?.addEventListener('click', clearAllHistor
                 
                 for (let i = totalSeconds; i >= 0; i--) {
                     // 🟢 修改：加 1000 毫秒 (1秒)，呢 1 秒就係無字、無聲嘅純緩衝預備時間！
-                    const delay = (totalSeconds - i) * 1000 + 1000; 
+                    const delay = (totalSeconds - i) * 1000 + 300; 
                     
                     let t = setTimeout(() => {
                         // 防呆：如果中途按咗 Reset 終止咗倒數，就唔好繼續發聲
