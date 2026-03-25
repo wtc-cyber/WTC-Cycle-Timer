@@ -1857,6 +1857,12 @@ document.getElementById('clearAllBtn')?.addEventListener('click', clearAllHistor
             alert("iPhone 或部分設備不支援直接全螢幕 🥲\n\n想完美全螢幕？請撳瀏覽器嘅「分享」掣，然後揀「加入主畫面 (Add to Home Screen)」。\n\n之後喺桌面打開個 App，就會係 100% 完美全螢幕㗎喇！");
         }
 
+// --- 🟢 註冊 Service Worker，滿足 Chrome 嘅安裝條件 ---
+if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('./sw.js').then(function() {
+                console.log('Service Worker 註冊完成！');
+            });
+        }
     </script>
 </body>
 </html>
