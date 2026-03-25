@@ -1332,13 +1332,12 @@ document.getElementById('clearAllBtn')?.addEventListener('click', clearAllHistor
 
                 oscillator.type = 'square'; 
 
-                // 🟢 核心修復：加入 0.05 秒緩衝 (Buffer)
-                // 等手機 CPU 同喇叭有足夠時間 Wake up，解決第一下「嗶」聲被截斷/唔準確嘅問題
+                // 0.05 秒緩衝 (Buffer) 確保第一下聲唔窒
                 const startTime = audioCtx.currentTime + 0.05;
 
                 oscillator.frequency.setValueAtTime(freq, startTime);
 
-                // 音量控制：所有時間點都要基於 startTime
+                // 音量控制
                 gainNode.gain.setValueAtTime(0, startTime);
                 gainNode.gain.linearRampToValueAtTime(0.5, startTime + 0.01);
                 gainNode.gain.setValueAtTime(0.5, startTime + duration - 0.01);
@@ -1346,6 +1345,14 @@ document.getElementById('clearAllBtn')?.addEventListener('click', clearAllHistor
 
                 oscillator.start(startTime);
                 oscillator.stop(startTime + duration);
+
+                // 🟢 核心修正：Safari 專用「執垃圾」機制
+                // 當呢吓嗶聲播完之後，即刻切斷連結，釋放記憶體！
+                oscillator.onended = () => {
+                    oscillator.disconnect();
+                    gainNode.disconnect();
+                };
+
             } catch (e) {
                 console.error("Audio Context Error:", e);
             }
