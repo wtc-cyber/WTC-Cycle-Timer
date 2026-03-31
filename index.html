@@ -6,7 +6,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="mobile-web-app-capable" content="yes">
-    <title>WTC Cycle Timer v6.2.3</title>
+    <title>WTC Cycle Timer v6.3</title>
     <style>
         /* --- 全域重設及變數 --- */
         /* 說明：定義根元素變數，包括顏色主題；重設所有元素的盒模型及點擊高亮效果。 */
@@ -742,7 +742,7 @@
                     <div id="lapCounter">0</div>
                 </div>
                 <div id="lapsRemaining"></div>
-                <div class="branding-text">by Woody Wong v6.2.3</div>
+                <div class="branding-text">by Woody Wong v6.3</div>
             </div>
            
             <!-- 右上角: 總時間 + 運行圈時間 -->
@@ -1287,32 +1287,6 @@ document.getElementById('clearAllBtn')?.addEventListener('click', clearAllHistor
             }
         }
 
-        // --- 音頻初始化 ---
-        // 說明：初始化音頻，從雲端載入。
-        function initAudio() {
-            waitingTextEl.innerHTML = "LOADING AUDIO...";
-            audioBtn.classList.add('loading');
-           
-            countdownAudio.src = CLOUD_AUDIO_URL;
-            countdownAudio.crossOrigin = "anonymous";
-           
-            countdownAudio.oncanplaythrough = function() {
-                audioFileLoaded = true;
-                // 不強制覆蓋，依賴儲存狀態
-                audioBtn.classList.remove('loading');
-                updateAudioBtnState();
-            };
-           
-            countdownAudio.onerror = function() {
-                console.log("Cloud audio failed");
-                audioFileLoaded = false;
-                audioBtn.classList.remove('loading');
-                updateAudioBtnState();
-            };
-           
-            countdownAudio.load();
-        }
-        window.addEventListener('load', initAudio);
 
 // --- 500Hz / 1000Hz 場地單車起步音效 ---
         function playTrackBeep(isFinal) {
@@ -1752,16 +1726,19 @@ document.getElementById('clearAllBtn')?.addEventListener('click', clearAllHistor
             else finishSession();
         });
        
-        // 說明：處理點擊事件，忽略輸入及按鈕。
+// 說明：處理點擊事件，忽略輸入及按鈕。
         function handleTap(e) {
             // 忽略如果點擊輸入或按鈕
-            if (e.target.closest('.floating-action-container') ||
+            if (e.target && (
+                e.target.closest('.floating-action-container') ||
                 e.target.closest('.header') ||
                 e.target.closest('.summary-header-bar') ||
                 e.target.closest('.report-options-menu') ||
                 e.target.closest('.screen-history') ||
                 e.target.tagName === 'INPUT' ||
-                e.target.id === 'topResetBtn') return;
+                e.target.id === 'topResetBtn'
+            )) return;
+            
             if (!isRunning) {
                 if(e.type === 'touchstart') e.preventDefault();
                 triggerStart();
@@ -1770,8 +1747,27 @@ document.getElementById('clearAllBtn')?.addEventListener('click', clearAllHistor
                 lap();
             }
         }
+        
         tapArea.addEventListener('touchstart', handleTap, {passive: false});
         tapArea.addEventListener('mousedown', handleTap);
+
+        // 🟢 這裡新增：監聽鍵盤空白鍵 (Spacebar)
+        document.addEventListener('keydown', function(event) {
+            // 檢查是否按下空白鍵
+            if (event.code === 'Space' || event.key === ' ') {
+                event.preventDefault(); // 防止空白鍵令網頁向下滾動
+                
+                // 模擬一個假的 event 傳入 handleTap，避免 e.target 報錯
+                const fakeEvent = { 
+                    target: document.body,
+                    type: 'keydown',
+                    preventDefault: function() {}
+                };
+                
+                handleTap(fakeEvent); 
+                console.log("已成功透過空白鍵觸發 handleTap！");
+            }
+        });
 
         // 立即重設 - 使用綁定監聽器
         bindTouchClick(topResetBtn, resetAll);
@@ -1863,6 +1859,8 @@ if ('serviceWorker' in navigator) {
                 console.log('Service Worker 註冊完成！');
             });
         }
+
+
     </script>
 </body>
 </html>
